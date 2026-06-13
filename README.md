@@ -39,11 +39,32 @@ this way).
 The container runs as a non-root user `onyxia` with passwordless sudo, matching the Onyxia
 convention used across the EDITO catalog.
 
-## NO Tailscale
+## Connect via Tailscale SSH
 
-This image deliberately does **not** ship with Tailscale. Tailscale access is a manual paste-only
-step by an operator; baking it into the image would be flagged by EDITO admins. See
-`pure-claude/docs/deployment/terminal-tunnel-paste.sh` in the SURIMI-edito working repo.
+In the browser terminal, run:
+
+```
+./connect
+```
+
+Paste a **one-shot** Tailscale auth key created with **tag:edito** at
+https://login.tailscale.com/admin/settings/keys (input is hidden). The script downloads
+Tailscale at runtime, joins the tailnet as `surimi-terminal`, and starts a shared tmux
+session `work`. From the operator's box:
+
+```
+tailscale ssh onyxia@surimi-terminal
+tailscale ssh onyxia@surimi-terminal -- tmux attach -t work
+```
+
+Gotcha: delete any stale `surimi-terminal` node in the Tailscale admin console first,
+otherwise the pod joins as `surimi-terminal-1` and the hostname above won't match.
+
+## NO Tailscale baked in
+
+This image deliberately does **not** ship with the Tailscale binary. Only the inert
+`connect` bootstrap script is included; the binary is downloaded at runtime by an operator
+who supplies a key. Baking Tailscale into the image would be flagged by EDITO admins.
 
 ## Deployment
 

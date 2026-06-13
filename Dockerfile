@@ -26,7 +26,8 @@ RUN useradd -m -s /bin/bash onyxia \
     && chown -R onyxia:onyxia /home/onyxia
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY connect /usr/local/bin/connect
+RUN chmod +x /entrypoint.sh /usr/local/bin/connect
 
 EXPOSE 7681 22
 

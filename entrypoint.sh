@@ -10,6 +10,10 @@ set -e
 } >> /home/onyxia/.bashrc
 chown onyxia:onyxia /home/onyxia/.bashrc
 
+# Convenience symlink so a literal `./connect` works at login
+ln -sf /usr/local/bin/connect /home/onyxia/connect 2>/dev/null || true
+chown -h onyxia:onyxia /home/onyxia/connect 2>/dev/null || true
+
 # Start sshd
 /usr/sbin/sshd -D &
 

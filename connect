@@ -1,0 +1,46 @@
+#!/bin/bash
+# connect — join this pod to a Tailscale tailnet so the operator's box can:
+#   tailscale ssh onyxia@surimi-terminal
+#   tailscale ssh onyxia@surimi-terminal -- tmux attach -t work
+#
+# The TSKEY must be a one-shot auth key created with tag:edito at
+# https://login.tailscale.com/admin/settings/keys. Delete any stale
+# "surimi-terminal" node in the admin console FIRST, or this pod joins
+# as surimi-terminal-1 and the ssh hostname above won't match.
+#
+# Tailscale is downloaded at runtime on purpose (EDITO-admin policy:
+# the binary must not be baked into the image; only this inert script ships).
+set +e
+
+TSKEY="${1:-${TSKEY:-}}"
+if [ -z "$TSKEY" ]; then
+  # -s: don't echo the one-shot key into the ttyd scrollback
+  read -r -s -p "Paste TSKEY (tag:edito): " TSKEY; echo
+fi
+if [ -z "$TSKEY" ]; then echo "No TSKEY provided, aborting."; exit 1; fi
+
+# 1. Download Tailscale (pinned version, two-URL fallback)
+TS_VER=1.78.1
+mkdir -p ~/.local/bin && export PATH="$HOME/.local/bin:$PATH"
+if [ ! -x ~/.local/bin/tailscaled ]; then
+  curl -fsSL -o /tmp/ts.tgz "https://pkgs.tailscale.com/stable/tailscale_${TS_VER}_amd64.tgz" || curl -fsSL -o /tmp/ts.tgz "https://github.com/tailscale/tailscale/releases/download/v${TS_VER}/tailscale_${TS_VER}_linux_amd64.tgz"
+  mkdir -p /tmp/tse && tar -xzf /tmp/ts.tgz -C /tmp/tse
+  mv "$(find /tmp/tse -name tailscale -type f | head -1)" ~/.local/bin/tailscale
+  mv "$(find /tmp/tse -name tailscaled -type f | head -1)" ~/.local/bin/tailscaled
+  chmod +x ~/.local/bin/tailscale ~/.local/bin/tailscaled
+  rm -rf /tmp/tse /tmp/ts.tgz
+fi
+
+# 2. Start tailscaled + join tailnet (idempotent: kill any previous daemon)
+# --statedir is critical: without it tailscaled can't write SSH host keys
+# and Tailscale SSH silently disables.
+mkdir -p /tmp/ts-state/ssh
+pkill -f tailscaled 2>/dev/null; sleep 1
+nohup ~/.local/bin/tailscaled --tun=userspace-networking --socks5-server=localhost:1055 --state=/tmp/ts-state/tailscaled.state --socket=/tmp/ts-state/tailscaled.sock --statedir=/tmp/ts-state >/tmp/tailscaled.log 2>&1 &
+sleep 5
+~/.local/bin/tailscale --socket=/tmp/ts-state/tailscaled.sock up --auth-key="$TSKEY" --ssh --hostname=surimi-terminal --accept-routes=false
+
+# 3. Shared tmux session
+tmux new -d -s work 2>/dev/null
+echo "=== READY: tailscale ssh onyxia@surimi-terminal ==="
+echo "Shared tmux: tailscale ssh onyxia@surimi-terminal -- tmux attach -t work"
